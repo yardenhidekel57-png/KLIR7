@@ -688,14 +688,15 @@ const CONFIG = {
   // Short note shown under the managing-company line
   managementNote: "כל פנייה או תקלה ניתן לדווח גם דרך אפליקציית BuildApp.",
 
-  // Committee members publish notices through the companion admin.html
-  // tool, which writes them into notices.json in this same folder — the
-  // board just fetches that file (see fetchNotices()) and this array is
-  // only the fallback shown before that first fetch resolves, or if
-  // notices.json isn't reachable (e.g. opening this file directly
-  // instead of through the hosted site). Leave it empty.
+  // Committee members publish notices from their phones through a small
+  // Cloudflare Worker (a friendly PIN-protected page — see worker.js);
+  // the board just fetches its /api/notices endpoint (see fetchNotices())
+  // and this array is only the fallback shown before that first fetch
+  // resolves, or if the Worker isn't reachable. Fill in noticesApiUrl
+  // with your deployed Worker's URL, e.g.
+  // "https://klir7-notices.<your-subdomain>.workers.dev/api/notices".
   notices: [],
-  noticesUrl: "notices.json",
+  noticesApiUrl: "https://klir7-notices.yardenhidekel57.workers.dev/api/notices",
   noticesRefreshMs: 3 * 60 * 1000,
 
   // Shown only for an instant before the live news feed loads, or if
@@ -854,22 +855,22 @@ function renderNotices(){
   layoutNoticePages();
 }
 
-// Committee members publish notices by editing notices.json (via the
-// companion admin tool) in the same repo the board itself is hosted
-// from — fetched here as a plain same-origin JSON file, no server
-// needed. If it's missing (e.g. testing the board as a local file
-// before it's deployed) or unreachable, the board just keeps whatever
-// notices it already has (CONFIG.notices' own fallback, normally empty).
+// Committee members publish notices from their phones through the
+// companion Cloudflare Worker (worker.js) — a small cross-origin JSON
+// API, no GitHub or token involved on their end. Fetched live here on a
+// timer; if it's unreachable (e.g. the Worker URL hasn't been filled in
+// yet, or a network hiccup) the board just keeps whatever notices it
+// already has (CONFIG.notices' own fallback, normally empty).
 async function fetchNotices(){
   try{
-    const res = await fetch(`${CONFIG.noticesUrl}?_=${Date.now()}`, { cache: 'no-store' });
+    const res = await fetch(`${CONFIG.noticesApiUrl}?_=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) throw new Error('bad response ' + res.status);
     const data = await res.json();
     const items = Array.isArray(data.active) ? data.active : [];
     CONFIG.notices = items;
     layoutNoticePages();
   }catch(err){
-    console.warn('notices.json unavailable, keeping last known notices:', err);
+    console.warn('notices API unavailable, keeping last known notices:', err);
   }
 }
 
