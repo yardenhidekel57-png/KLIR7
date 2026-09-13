@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ניהול הודעות לדיירים — קליר 7</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Suez+One&family=Frank+Ruhl+Libre:wght@400;500;600;700;800&family=Assistant:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#0f2a4e;
+    --navy-mid:#143661;
+    --navy-panel:#173e71;
+    --gold:#cda85e;
+    --gold-light:#e8cd92;
+    --gold-dim:rgba(205,168,94,0.35);
+    --hairline:rgba(205,168,94,0.32);
+    --cream:#f3e7cf;
+    --cream-2:#e8d7b0;
+    --text-navy:#132a4e;
+    --text-navy-soft:#4a5d80;
+    --danger:#b23a4e;
+    --ok:#2f7a4f;
+    --radius-lg:18px;
+    --radius-md:13px;
+    --radius-sm:9px;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ min-height:100%; background:linear-gradient(165deg,#0f2a4e 0%,#143661 50%,#0f2a4e 100%); font-family:'Assistant',Arial,sans-serif; color:var(--text-navy); }
+  body{ padding:22px 16px 60px; }
+  h1,h2,.serif{ font-family:'Frank Ruhl Libre','Assistant',serif; }
+
+  .wrap{ max-width:760px; margin:0 auto; }
+
+  header.top{
+    background:var(--navy-panel);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius-lg);
+    box-shadow:0 10px 28px rgba(0,0,0,0.4);
+    padding:20px 26px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    margin-bottom:22px;
+  }
+  header.top h1{
+    font-family:'Suez One','Frank Ruhl Libre',serif;
+    font-size:26px;
+    font-weight:400;
+    color:var(--gold-light);
+  }
+  header.top .sub{ font-size:14px; color:#c6d3ea; margin-top:4px; }
+  .settings-btn{
+    background:transparent; border:1px solid var(--gold-dim); color:var(--gold-light);
+    border-radius:var(--radius-sm); padding:9px 14px; font-size:14px; font-family:inherit;
+    cursor:pointer; white-space:nowrap;
+  }
+  .settings-btn:hover{ background:rgba(205,168,94,0.12); }
+
+  .card{
+    background:var(--cream);
+    border:1px solid var(--gold-dim);
+    border-radius:var(--radius-lg);
+    box-shadow:0 8px 22px rgba(0,0,0,0.28);
+    padding:22px;
+    margin-bottom:20px;
+  }
+  .card h2{ font-size:21px; color:var(--navy-panel); margin-bottom:14px; }
+
+  /* ---------- status strip ---------- */
+  .status{
+    display:flex; align-items:center; gap:10px;
+    font-size:15px; font-weight:700; padding:10px 16px; border-radius:var(--radius-sm);
+    margin-bottom:18px;
+  }
+  .status.ok{ background:#e3f2e8; color:var(--ok); }
+  .status.err{ background:#fbe9ec; color:var(--danger); }
+  .status.busy{ background:#eef2f8; color:var(--navy-mid); }
+  .status[hidden]{ display:none; }
+
+  /* ---------- setup form ---------- */
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-weight:700; font-size:15px; margin-bottom:6px; color:var(--navy-panel); }
+  .field .hint{ font-size:13px; color:var(--text-navy-soft); margin-top:5px; line-height:1.5; }
+  input[type=text], input[type=password], textarea, select{
+    width:100%; font-family:inherit; font-size:17px; padding:12px 14px;
+    border:1.5px solid var(--gold-dim); border-radius:var(--radius-sm);
+    background:#fff; color:var(--text-navy);
+  }
+  input:focus, textarea:focus, select:focus{ outline:2px solid var(--gold); }
+  textarea{ resize:vertical; min-height:90px; line-height:1.5; }
+
+  .btn{
+    font-family:inherit; font-size:16px; font-weight:800; border:none; border-radius:var(--radius-sm);
+    padding:13px 22px; cursor:pointer; transition:transform .1s, box-shadow .1s;
+  }
+  .btn:active{ transform:scale(0.98); }
+  .btn-primary{ background:var(--navy-panel); color:var(--gold-light); }
+  .btn-primary:hover{ background:var(--navy-mid); }
+  .btn-gold{ background:var(--gold); color:#3a2a08; }
+  .btn-gold:hover{ background:var(--gold-light); }
+  .btn-ghost{ background:transparent; color:var(--navy-panel); border:1.5px solid var(--gold-dim); }
+  .btn-ghost:hover{ background:rgba(205,168,94,0.12); }
+  .btn-danger{ background:transparent; color:var(--danger); border:1.5px solid #e2a7b2; }
+  .btn-danger:hover{ background:#fbe9ec; }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; }
+  .btn[disabled]{ opacity:0.55; cursor:default; }
+
+  /* ---------- notice list (management) ---------- */
+  .mgmt-list{ display:flex; flex-direction:column; gap:12px; }
+  .mgmt-item{
+    background:linear-gradient(160deg,#f8f4ec,#f0e9d8);
+    border:1px solid var(--gold-dim);
+    border-radius:var(--radius-md);
+    padding:16px 18px;
+    display:flex; gap:14px; align-items:flex-start;
+  }
+  .mgmt-item.urgent{ background:linear-gradient(160deg,#fbe9ec,#f7dde1); border-color:#e2a7b2; }
+  .mgmt-item .reorder{ display:flex; flex-direction:column; gap:4px; flex-shrink:0; }
+  .mgmt-item .reorder button{
+    width:32px; height:28px; border-radius:7px; border:1px solid var(--gold-dim);
+    background:#fff; color:var(--navy-panel); font-size:14px; cursor:pointer;
+  }
+  .mgmt-item .reorder button:disabled{ opacity:0.3; cursor:default; }
+  .mgmt-item .body{ flex:1; min-width:0; }
+  .mgmt-item .tag{
+    display:inline-block; font-size:13px; font-weight:700; padding:3px 12px; border-radius:20px;
+    background:var(--navy-mid); color:var(--gold-light); margin-bottom:6px;
+  }
+  .mgmt-item.urgent .tag{ background:var(--danger); color:#fff; }
+  .mgmt-item .title{ font-family:'Frank Ruhl Libre',serif; font-weight:700; font-size:19px; margin-bottom:4px; }
+  .mgmt-item .text{ font-size:15px; color:#4a5d80; line-height:1.5; }
+  .mgmt-item .date{ font-size:12px; color:#8a97ac; margin-top:6px; direction:ltr; text-align:right; }
+  .mgmt-item .actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+  .mgmt-item .actions button{
+    font-family:inherit; font-size:13px; padding:7px 12px; border-radius:7px; border:1px solid var(--gold-dim);
+    background:#fff; color:var(--navy-panel); cursor:pointer; white-space:nowrap;
+  }
+  .mgmt-item .actions button.del{ color:var(--danger); border-color:#e2a7b2; }
+  .mgmt-item .actions button.restore{ color:var(--ok); border-color:#9cc7ac; }
+  .empty-note{ text-align:center; color:var(--text-navy-soft); font-size:15px; padding:16px; }
+
+  .archive-toggle{
+    display:flex; align-items:center; justify-content:space-between; cursor:pointer;
+    padding:10px 4px; font-weight:700; color:var(--navy-panel); font-size:16px;
+  }
+  .archive-toggle .arrow{ transition:transform .2s; }
+  .archive-toggle.open .arrow{ transform:rotate(180deg); }
+  #archiveList{ margin-top:10px; }
+  #archiveList[hidden]{ display:none; }
+
+  /* ---------- editor modal ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(10,20,40,0.55); display:flex;
+    align-items:center; justify-content:center; padding:20px; z-index:20;
+  }
+  .modal-backdrop[hidden]{ display:none; }
+  .modal{
+    background:#fff; border-radius:var(--radius-lg); padding:24px; max-width:520px; width:100%;
+    max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.4);
+  }
+  .modal h2{ margin-bottom:16px; color:var(--navy-panel); }
+  .chip-row{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .chip{
+    font-size:14px; padding:6px 14px; border-radius:20px; border:1px solid var(--gold-dim);
+    background:#fff; cursor:pointer; color:var(--navy-panel);
+  }
+  .chip.active{ background:var(--navy-panel); color:var(--gold-light); border-color:var(--navy-panel); }
+  .checkbox-row{ display:flex; align-items:center; gap:9px; margin-bottom:16px; }
+  .checkbox-row input{ width:20px; height:20px; }
+  .checkbox-row label{ font-size:16px; font-weight:700; color:var(--danger); }
+
+  /* ---------- live preview: mirrors the board's own notice panel ---------- */
+  .preview-frame{
+    background:var(--navy-deep);
+    border-radius:var(--radius-lg);
+    padding:18px;
+    box-shadow:inset 0 0 0 1px rgba(205,168,94,0.2);
+  }
+  .preview-board-card{
+    background:var(--cream);
+    border-radius:var(--radius-md);
+    overflow:hidden;
+    box-shadow:0 8px 22px rgba(0,0,0,0.3);
+  }
+  .preview-title{
+    background:var(--navy-panel); color:var(--gold-light);
+    font-family:'Suez One','Frank Ruhl Libre',serif; font-size:20px;
+    padding:10px 18px; display:flex; align-items:center; gap:8px;
+  }
+  .preview-title::before{ content:'◆'; color:var(--gold); font-size:10px; }
+  .preview-body{ height:420px; padding:12px 16px; overflow:hidden; }
+  .preview-list{ overflow:hidden; display:flex; flex-direction:column; gap:0.79em; font-size:19px; height:100%; }
+  .preview-card{
+    background:linear-gradient(160deg,#f8f4ec,#f0e9d8);
+    border:1px solid var(--gold-dim); border-radius:var(--radius-md);
+    padding:0.89em 1em; color:var(--text-navy);
+  }
+  .preview-card.urgent{ background:linear-gradient(160deg,#fbe9ec,#f7dde1); border-color:#e2a7b2; }
+  .preview-tag{
+    display:inline-block; font-size:0.84em; font-weight:700; padding:0.2em 0.79em; border-radius:20px;
+    background:var(--navy-mid); color:var(--gold-light); margin-bottom:0.5em;
+  }
+  .preview-card.urgent .preview-tag{ background:var(--danger); color:#fff; }
+  .preview-card-title{ font-family:'Frank Ruhl Libre',serif; font-size:1.26em; font-weight:700; margin-bottom:0.4em; }
+  .preview-card-body{ font-size:1em; color:#3f4f6c; line-height:1.5; }
+  .preview-card-date{ display:block; margin-top:0.6em; font-size:0.79em; color:#7a8aa3; direction:ltr; text-align:left; }
+  .preview-empty{ height:100%; display:flex; align-items:center; justify-content:center; color:var(--text-navy-soft); font-size:18px; font-weight:600; }
+  .preview-note{ font-size:13px; color:#c6d3ea; margin-top:10px; text-align:center; }
+
+  footer.foot{ text-align:center; margin-top:28px; }
+  footer.foot a{ color:#c6d3ea; font-size:13px; text-decoration:underline; cursor:pointer; }
+
+  @media (max-width:560px){
+    .mgmt-item{ flex-wrap:wrap; }
+    .mgmt-item .reorder{ flex-direction:row; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>ניהול הודעות לדיירים</h1>
+      <div class="sub">קליר 7, נתניה — ממשק לוועד הבית</div>
+    </div>
+    <button class="settings-btn" id="settingsBtn" type="button">⚙ הגדרות חיבור</button>
+  </header>
+
+  <div class="status busy" id="statusBar" hidden></div>
+
+  <!-- ============ SETUP CARD (shown only until configured) ============ -->
+  <section class="card" id="setupCard" hidden>
+    <h2>חיבור ללוח</h2>
+    <p style="font-size:15px; color:var(--text-navy-soft); line-height:1.6; margin-bottom:18px;">
+      ההודעות שנכתבות כאן נשמרות ישירות בתוך ה־GitHub repository שממנו מתפרסם הלוח הדיגיטלי, בקובץ בשם <code>notices.json</code> שיושב באותה תיקייה כמו <code>index_he.html</code>. את הפרטים הבאים ממלאים פעם אחת בלבד, בדרך כלל מי שהקים את הלוח — לאחר מכן שאר חברי הוועד פשוט פותחים את העמוד הזה ורואים ישר את מסך ניהול ההודעות.
+    </p>
+    <div class="field">
+      <label for="fOwner">בעלים / ארגון ב-GitHub</label>
+      <input type="text" id="fOwner" placeholder="למשל: yarden-h">
+    </div>
+    <div class="field">
+      <label for="fRepo">שם ה-repository</label>
+      <input type="text" id="fRepo" placeholder="למשל: klir7-board">
+    </div>
+    <div class="field">
+      <label for="fBranch">ענף (Branch)</label>
+      <input type="text" id="fBranch" placeholder="main" value="main">
+    </div>
+    <div class="field">
+      <label for="fToken">Personal Access Token</label>
+      <input type="password" id="fToken" placeholder="ghp_... או github_pat_...">
+      <div class="hint">
+        מומלץ ליצור טוקן מסוג <strong>Fine-grained</strong> המוגבל ל־repository הזה בלבד, עם הרשאת <strong>Contents: Read and write</strong> ותו לא — כך שגם אם הטוקן ייחשף, הנזק האפשרי מוגבל לתיקייה הזו בלבד. הטוקן נשמר רק בדפדפן הזה (לא נשלח לשום מקום מלבד GitHub עצמו).
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gold" id="saveSetupBtn" type="button">שמירה והתחברות</button>
+    </div>
+  </section>
+
+  <!-- ============ MAIN APP (shown once configured) ============ -->
+  <div id="mainApp" hidden>
+
+    <section class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+        <h2 style="margin-bottom:0;">הודעות פעילות בלוח</h2>
+        <button class="btn btn-gold" id="newNoticeBtn" type="button">+ הודעה חדשה</button>
+      </div>
+      <p style="font-size:14px; color:var(--text-navy-soft); margin-bottom:14px;">הסדר כאן הוא סדר ההופעה בלוח — ההודעה העליונה מוצגת ראשונה.</p>
+      <div class="mgmt-list" id="activeList"></div>
+    </section>
+
+    <section class="card">
+      <div class="archive-toggle" id="archiveToggle">
+        <span>הודעות שנמחקו (<span id="archiveCount">0</span>)</span>
+        <span class="arrow">▾</span>
+      </div>
+      <div class="mgmt-list" id="archiveList" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>תצוגה מקדימה — כך זה ייראה בלוח</h2>
+      <div class="preview-frame">
+        <div class="preview-board-card">
+          <div class="preview-title">הודעות לדיירים</div>
+          <div class="preview-body"><div class="preview-list" id="previewList"></div></div>
+        </div>
+      </div>
+      <div class="preview-note">התצוגה מתעדכנת לפי אותו מנגנון התאמה אוטומטית שרץ בפועל על הלוח — אם יש יותר מדי תוכן, ההודעות יתחלקו למספר "עמודים" שיתחלפו לבד.</div>
+    </section>
+
+  </div>
+
+  <footer class="foot">
+    <a id="disconnectLink">ניתוק / החלפת חיבור</a>
+  </footer>
+
+</div>
+
+<!-- ============ EDITOR MODAL ============ -->
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+  <div class="modal">
+    <h2 id="modalTitle">הודעה חדשה</h2>
+    <div class="field">
+      <label>קטגוריה</label>
+      <div class="chip-row" id="tagChips">
+        <span class="chip" data-tag="ועד בית">ועד בית</span>
+        <span class="chip" data-tag="תחזוקה">תחזוקה</span>
+        <span class="chip" data-tag="כללי">כללי</span>
+        <span class="chip" data-tag="אירוע">אירוע</span>
+      </div>
+      <input type="text" id="fTag" placeholder="או הקלידו קטגוריה משלכם">
+    </div>
+    <div class="field">
+      <label for="fTitle">כותרת</label>
+      <input type="text" id="fTitle" maxlength="60">
+    </div>
+    <div class="field">
+      <label for="fBody">תוכן ההודעה</label>
+      <textarea id="fBody" maxlength="400"></textarea>
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="fUrgent">
+      <label for="fUrgent">הודעה דחופה (תוצג מודגשת באדום)</label>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gold" id="saveNoticeBtn" type="button">שמירה ופרסום בלוח</button>
+      <button class="btn btn-ghost" id="cancelNoticeBtn" type="button">ביטול</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   STORAGE / GITHUB CONFIG
+========================================================================= */
+const STORAGE_KEY = 'klir7_admin_github_config_v1';
+
+function loadConfig(){
+  try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function saveConfig(cfg){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); }catch(e){ /* ignore */ }
+}
+function clearConfig(){
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(e){ /* ignore */ }
+}
+
+let ghConfig = loadConfig();
+let noticesData = { active: [], archived: [] };
+let currentSha = null; // GitHub blob sha of notices.json, needed to update it
+let editingId = null;  // id being edited in the modal, or null for "new"
+
+/* =========================================================================
+   UTF-8 SAFE BASE64 HELPERS (GitHub's Contents API is base64-in/out)
+========================================================================= */
+function utf8ToB64(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function b64ToUtf8(b64){
+  return decodeURIComponent(escape(atob(b64.replace(/\n/g, ''))));
+}
+
+/* =========================================================================
+   STATUS STRIP
+========================================================================= */
+function setStatus(kind, text){
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status ' + kind;
+  bar.textContent = text;
+  bar.hidden = false;
+  if (kind === 'ok'){
+    setTimeout(() => { if (bar.textContent === text) bar.hidden = true; }, 3500);
+  }
+}
+
+/* =========================================================================
+   GITHUB CONTENTS API
+========================================================================= */
+function ghApiUrl(){
+  const { owner, repo } = ghConfig;
+  return `https://api.github.com/repos/${owner}/${repo}/contents/notices.json`;
+}
+
+async function ghFetchNotices(){
+  const branch = ghConfig.branch || 'main';
+  const res = await fetch(`${ghApiUrl()}?ref=${encodeURIComponent(branch)}&_=${Date.now()}`, {
+    headers: {
+      'Authorization': `Bearer ${ghConfig.token}`,
+      'Accept': 'application/vnd.github+json'
+    }
+  });
+  if (res.status === 404){
+    // notices.json doesn't exist yet in the repo — start from empty.
+    currentSha = null;
+    return { active: [], archived: [] };
+  }
+  if (!res.ok){
+    const body = await res.text().catch(() => '');
+    throw new Error(`GitHub שגיאה ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  currentSha = data.sha;
+  const parsed = JSON.parse(b64ToUtf8(data.content));
+  return {
+    active: Array.isArray(parsed.active) ? parsed.active : [],
+    archived: Array.isArray(parsed.archived) ? parsed.archived : []
+  };
+}
+
+async function ghSaveNotices(){
+  const branch = ghConfig.branch || 'main';
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    active: noticesData.active,
+    archived: noticesData.archived
+  };
+  const body = {
+    message: 'עדכון הודעות לדיירים דרך ממשק הוועד',
+    content: utf8ToB64(JSON.stringify(payload, null, 2)),
+    branch
+  };
+  if (currentSha) body.sha = currentSha;
+
+  const res = await fetch(ghApiUrl(), {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${ghConfig.token}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok){
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`GitHub שגיאה ${res.status}: ${errBody.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  currentSha = data.content ? data.content.sha : currentSha;
+}
+
+async function persist(){
+  setStatus('busy', 'שומר בלוח…');
+  try{
+    await ghSaveNotices();
+    setStatus('ok', 'נשמר ופורסם בהצלחה ✓ (יופיע בלוח תוך דקות ספורות)');
+  }catch(err){
+    console.warn(err);
+    setStatus('err', 'שגיאה בשמירה — ' + err.message + ' (נסו שוב)');
+    throw err;
+  }
+  renderAll();
+}
+
+/* =========================================================================
+   RENDERING — active / archive lists
+========================================================================= */
+function escapeHtml(s){
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function activeItemHTML(n, i, total){
+  return `
+    <div class="mgmt-item ${n.urgent ? 'urgent' : ''}" data-id="${n.id}">
+      <div class="reorder">
+        <button data-act="up" ${i === 0 ? 'disabled' : ''} title="הזז למעלה">▲</button>
+        <button data-act="down" ${i === total - 1 ? 'disabled' : ''} title="הזז למטה">▼</button>
+      </div>
+      <div class="body">
+        ${n.tag ? `<span class="tag">${escapeHtml(n.tag)}</span>` : ''}
+        <div class="title">${escapeHtml(n.title)}</div>
+        <div class="text">${escapeHtml(n.body)}</div>
+        ${n.date ? `<div class="date">${escapeHtml(n.date)}</div>` : ''}
+      </div>
+      <div class="actions">
+        <button data-act="edit">עריכה</button>
+        <button data-act="delete" class="del">מחיקה</button>
+      </div>
+    </div>
+  `;
+}
+
+function archiveItemHTML(n){
+  return `
+    <div class="mgmt-item" data-id="${n.id}" style="opacity:0.75;">
+      <div class="body">
+        ${n.tag ? `<span class="tag">${escapeHtml(n.tag)}</span>` : ''}
+        <div class="title">${escapeHtml(n.title)}</div>
+        <div class="text">${escapeHtml(n.body)}</div>
+      </div>
+      <div class="actions">
+        <button data-act="restore" class="restore">שחזור</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderActiveList(){
+  const list = document.getElementById('activeList');
+  if (!noticesData.active.length){
+    list.innerHTML = `<div class="empty-note">אין כרגע הודעות פעילות בלוח. לחצו על "הודעה חדשה" כדי להוסיף.</div>`;
+    return;
+  }
+  list.innerHTML = noticesData.active.map((n, i) => activeItemHTML(n, i, noticesData.active.length)).join('');
+}
+
+function renderArchiveList(){
+  document.getElementById('archiveCount').textContent = noticesData.archived.length;
+  const list = document.getElementById('archiveList');
+  list.innerHTML = noticesData.archived.length
+    ? noticesData.archived.map(archiveItemHTML).join('')
+    : `<div class="empty-note">אין הודעות מחוקות.</div>`;
+}
+
+/* ---------- live preview: same auto-fit logic as the real board ---------- */
+const PREVIEW_FONT_MAX = 19;
+const PREVIEW_FONT_MIN = 13;
+const PREVIEW_PAGE_MS = 4000;
+let previewPages = [[]];
+let previewPageIndex = 0;
+let previewTimer = null;
+
+function previewCardHTML(n){
+  return `
+    <div class="preview-card ${n.urgent ? 'urgent' : ''}">
+      ${n.tag ? `<span class="preview-tag">${escapeHtml(n.tag)}</span>` : ''}
+      <div class="preview-card-title">${escapeHtml(n.title)}</div>
+      <div class="preview-card-body">${escapeHtml(n.body)}</div>
+      ${n.date ? `<span class="preview-card-date">${escapeHtml(n.date)}</span>` : ''}
+    </div>
+  `;
+}
+function previewFitsAt(items, fontSize){
+  const list = document.getElementById('previewList');
+  list.style.fontSize = fontSize + 'px';
+  list.innerHTML = items.map(previewCardHTML).join('');
+  return list.scrollHeight <= list.parentElement.clientHeight + 1;
+}
+function layoutPreview(){
+  if (previewTimer){ clearInterval(previewTimer); previewTimer = null; }
+  const list = document.getElementById('previewList');
+  const items = noticesData.active;
+
+  if (!items.length){
+    list.style.fontSize = '';
+    list.innerHTML = `<div class="preview-empty">אין הודעות חדשות כרגע</div>`;
+    previewPages = [[]];
+    return;
+  }
+  for (let fs = PREVIEW_FONT_MAX; fs >= PREVIEW_FONT_MIN; fs--){
+    if (previewFitsAt(items, fs)){ previewPages = [items]; previewPageIndex = 0; return; }
+  }
+  const fs = PREVIEW_FONT_MIN;
+  const pages = [];
+  let current = [];
+  items.forEach(n => {
+    const trial = current.concat([n]);
+    if (current.length && !previewFitsAt(trial, fs)){ pages.push(current); current = [n]; }
+    else { current = trial; }
+  });
+  if (current.length) pages.push(current);
+  if (!pages.length) pages.push([]);
+  previewFitsAt(pages[0], fs);
+  previewPages = pages;
+  previewPageIndex = 0;
+  if (pages.length > 1){
+    previewTimer = setInterval(() => {
+      previewPageIndex = (previewPageIndex + 1) % previewPages.length;
+      previewFitsAt(previewPages[previewPageIndex], fs);
+    }, PREVIEW_PAGE_MS);
+  }
+}
+
+function renderAll(){
+  renderActiveList();
+  renderArchiveList();
+  layoutPreview();
+}
+
+/* =========================================================================
+   ACTIONS — add / edit / delete / restore / reorder
+========================================================================= */
+function makeId(){
+  return 'n' + Date.now() + Math.random().toString(36).slice(2, 7);
+}
+function todayHe(){
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+}
+
+function openModal(existing){
+  editingId = existing ? existing.id : null;
+  document.getElementById('modalTitle').textContent = existing ? 'עריכת הודעה' : 'הודעה חדשה';
+  document.getElementById('fTag').value = existing ? (existing.tag || '') : '';
+  document.getElementById('fTitle').value = existing ? existing.title : '';
+  document.getElementById('fBody').value = existing ? existing.body : '';
+  document.getElementById('fUrgent').checked = existing ? !!existing.urgent : false;
+  document.querySelectorAll('#tagChips .chip').forEach(c => {
+    c.classList.toggle('active', existing && c.dataset.tag === existing.tag);
+  });
+  document.getElementById('modalBackdrop').hidden = false;
+  document.getElementById('fTitle').focus();
+}
+function closeModal(){
+  document.getElementById('modalBackdrop').hidden = true;
+  editingId = null;
+}
+
+async function handleSaveNotice(){
+  const title = document.getElementById('fTitle').value.trim();
+  const body = document.getElementById('fBody').value.trim();
+  const tag = document.getElementById('fTag').value.trim();
+  const urgent = document.getElementById('fUrgent').checked;
+
+  if (!title || !body){
+    setStatus('err', 'צריך למלא כותרת ותוכן להודעה.');
+    return;
+  }
+
+  if (editingId){
+    const idx = noticesData.active.findIndex(n => n.id === editingId);
+    if (idx !== -1){
+      noticesData.active[idx] = { ...noticesData.active[idx], title, body, tag, urgent };
+    }
+  } else {
+    noticesData.active.unshift({
+      id: makeId(), title, body, tag, urgent,
+      date: `פורסם: ${todayHe()}`
+    });
+  }
+  closeModal();
+  renderAll();
+  try{ await persist(); }catch(e){ /* status already shown */ }
+}
+
+async function handleDelete(id){
+  const idx = noticesData.active.findIndex(n => n.id === id);
+  if (idx === -1) return;
+  const [n] = noticesData.active.splice(idx, 1);
+  n.deletedAt = new Date().toISOString();
+  noticesData.archived.unshift(n);
+  renderAll();
+  try{ await persist(); }catch(e){ /* status already shown */ }
+}
+
+async function handleRestore(id){
+  const idx = noticesData.archived.findIndex(n => n.id === id);
+  if (idx === -1) return;
+  const [n] = noticesData.archived.splice(idx, 1);
+  delete n.deletedAt;
+  noticesData.active.push(n);
+  renderAll();
+  try{ await persist(); }catch(e){ /* status already shown */ }
+}
+
+async function handleReorder(id, dir){
+  const idx = noticesData.active.findIndex(n => n.id === id);
+  if (idx === -1) return;
+  const swapWith = dir === 'up' ? idx - 1 : idx + 1;
+  if (swapWith < 0 || swapWith >= noticesData.active.length) return;
+  [noticesData.active[idx], noticesData.active[swapWith]] = [noticesData.active[swapWith], noticesData.active[idx]];
+  renderAll();
+  try{ await persist(); }catch(e){ /* status already shown */ }
+}
+
+/* =========================================================================
+   EVENT WIRING
+========================================================================= */
+document.getElementById('activeList').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const item = e.target.closest('.mgmt-item');
+  const id = item.dataset.id;
+  const act = btn.dataset.act;
+  if (act === 'up' || act === 'down') handleReorder(id, act);
+  else if (act === 'delete') handleDelete(id);
+  else if (act === 'edit'){
+    const n = noticesData.active.find(x => x.id === id);
+    if (n) openModal(n);
+  }
+});
+
+document.getElementById('archiveList').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-act="restore"]');
+  if (!btn) return;
+  const item = e.target.closest('.mgmt-item');
+  handleRestore(item.dataset.id);
+});
+
+document.getElementById('archiveToggle').addEventListener('click', () => {
+  const el = document.getElementById('archiveToggle');
+  const list = document.getElementById('archiveList');
+  list.hidden = !list.hidden;
+  el.classList.toggle('open', !list.hidden);
+});
+
+document.getElementById('newNoticeBtn').addEventListener('click', () => openModal(null));
+document.getElementById('cancelNoticeBtn').addEventListener('click', closeModal);
+document.getElementById('saveNoticeBtn').addEventListener('click', handleSaveNotice);
+document.getElementById('modalBackdrop').addEventListener('click', e => {
+  if (e.target.id === 'modalBackdrop') closeModal();
+});
+document.getElementById('tagChips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  document.getElementById('fTag').value = chip.dataset.tag;
+  document.querySelectorAll('#tagChips .chip').forEach(c => c.classList.toggle('active', c === chip));
+});
+
+document.getElementById('settingsBtn').addEventListener('click', showSetup);
+document.getElementById('disconnectLink').addEventListener('click', () => {
+  if (confirm('לנתק את החיבור ל-GitHub מהדפדפן הזה? (ניתן להתחבר שוב בכל עת)')){
+    clearConfig();
+    ghConfig = null;
+    showSetup();
+  }
+});
+
+document.getElementById('saveSetupBtn').addEventListener('click', async () => {
+  const owner = document.getElementById('fOwner').value.trim();
+  const repo = document.getElementById('fRepo').value.trim();
+  const branch = document.getElementById('fBranch').value.trim() || 'main';
+  const token = document.getElementById('fToken').value.trim();
+  if (!owner || !repo || !token){
+    setStatus('err', 'צריך למלא בעלים, שם repository וטוקן.');
+    return;
+  }
+  ghConfig = { owner, repo, branch, token };
+  setStatus('busy', 'בודק חיבור…');
+  try{
+    noticesData = await ghFetchNotices();
+    saveConfig(ghConfig);
+    setStatus('ok', 'התחברות הצליחה ✓');
+    showMain();
+    renderAll();
+  }catch(err){
+    console.warn(err);
+    setStatus('err', 'לא הצלחנו להתחבר — ' + err.message);
+  }
+});
+
+/* =========================================================================
+   VIEW SWITCHING / BOOT
+========================================================================= */
+function showSetup(){
+  document.getElementById('setupCard').hidden = false;
+  document.getElementById('mainApp').hidden = true;
+  if (ghConfig){
+    document.getElementById('fOwner').value = ghConfig.owner || '';
+    document.getElementById('fRepo').value = ghConfig.repo || '';
+    document.getElementById('fBranch').value = ghConfig.branch || 'main';
+    document.getElementById('fToken').value = ghConfig.token || '';
+  }
+}
+function showMain(){
+  document.getElementById('setupCard').hidden = true;
+  document.getElementById('mainApp').hidden = false;
+}
+
+async function boot(){
+  if (!ghConfig){
+    showSetup();
+    return;
+  }
+  showMain();
+  setStatus('busy', 'טוען הודעות…');
+  try{
+    noticesData = await ghFetchNotices();
+    setStatus('ok', 'טעינה הושלמה');
+    renderAll();
+  }catch(err){
+    console.warn(err);
+    setStatus('err', 'שגיאה בטעינה — ' + err.message);
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
