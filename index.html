@@ -989,14 +989,29 @@ function itemMs(item){
 // with maxItems good ones.
 const MIN_HEADLINE_LEN = 25;
 
+// A feed can easily contain 10 items spanning a whole day (a quiet
+// overnight stretch, then a burst once morning news picks up) — taking
+// the first maxItems blindly mixed genuinely-old headlines in alongside
+// fresh ones, and reading order wasn't guaranteed to be newest-first
+// either. So: sort newest-first, then only keep headlines from roughly
+// the last few hours — a headline older than that reading as "current
+// news" on a lobby screen is misleading, even if the feed still lists
+// it. If literally nothing qualifies (a very quiet news night), fall
+// back to just the single newest item rather than showing an empty
+// ticker.
+const MAX_HEADLINE_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
+
 function buildTickerItems(rawItems, maxItems){
-  return rawItems
-    .map(item => ({
-      time: formatHeadlineTimeMs(itemMs(item)),
-      text: (item.title || '').trim()
-    }))
+  const now = Date.now();
+  const withMs = rawItems
+    .map(item => ({ ms: itemMs(item), text: (item.title || '').trim() }))
     .filter(i => i.text && i.text.length >= MIN_HEADLINE_LEN)
-    .slice(0, maxItems);
+    .sort((a, b) => (isNaN(b.ms) ? -Infinity : b.ms) - (isNaN(a.ms) ? -Infinity : a.ms));
+
+  let recent = withMs.filter(i => !isNaN(i.ms) && (now - i.ms) <= MAX_HEADLINE_AGE_MS);
+  if (!recent.length && withMs.length) recent = withMs.slice(0, 1);
+
+  return recent.slice(0, maxItems).map(i => ({ time: formatHeadlineTimeMs(i.ms), text: i.text }));
 }
 
 // A single flaky/caching passthrough proxy was leaving the ticker up to a
