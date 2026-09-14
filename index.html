@@ -884,6 +884,15 @@ async function sendHeartbeat(){
   }
 }
 
+// A fixed 65s scroll duration looked fine when the ticker was full, but
+// on a quiet news night (only a handful of headlines within the 3-hour
+// window) the exact same duration had to stretch the same distance with
+// far less content on screen, which reads as the bar crawling. Scale the
+// duration to the actual rendered width instead, so the scroll speed
+// (px/sec) stays constant no matter how many headlines are showing.
+const TICKER_PIXELS_PER_SECOND = 100;
+const TICKER_MIN_DURATION_S = 20;
+
 function renderTicker(items){
   const track = document.getElementById('tickerTrack');
   const source = items && items.length ? items : CONFIG.ticker;
@@ -894,6 +903,17 @@ function renderTicker(items){
     </span>
   `).join('');
   track.innerHTML = html + html;
+
+  // Restart the animation cleanly (otherwise changing animation-duration
+  // on a running animation can jump/stutter) and size it to this round's
+  // actual content width. The track holds two duplicated copies of the
+  // content back-to-back (for the seamless loop), so one copy's width is
+  // half of the full scrollWidth.
+  track.style.animation = 'none';
+  void track.offsetWidth; // force reflow so the animation restarts from 0%
+  const singleSetWidth = track.scrollWidth / 2;
+  const duration = Math.max(TICKER_MIN_DURATION_S, singleSetWidth / TICKER_PIXELS_PER_SECOND);
+  track.style.animation = `ticker-scroll ${duration}s linear infinite`;
 }
 
 /* ---------------- Live YNET headline feed ---------------- */
@@ -1127,13 +1147,23 @@ async function fetchNewsTicker(){
   const { sources, proxyUrl, maxItems } = CONFIG.news;
   let best = null; // { rawItems, age }
 
+  // The Worker pulls straight from Walla with no caching layer in
+  // between (see worker.js's /api/news), so whatever it returns already
+  // IS the live feed — unlike the free public CORS proxies below, there
+  // is no "is this actually fresh or just a cached copy?" question to
+  // resolve here. The old code only trusted this result when its newest
+  // headline was under NEWS_FRESH_ENOUGH_MS old, and otherwise fell
+  // through into the slow multi-proxy chain (up to 3 proxies x 2 sources
+  // x 8s timeout, then an rss2json fallback) EVERY round the news was
+  // simply quiet for 45+ minutes — which is often, and is exactly what
+  // made the ticker take 2-3 minutes to update. Use it immediately on
+  // success; only fall through to the proxy chain if the Worker itself
+  // is unreachable.
   const ownWorkerResult = await fetchViaOwnWorker(sources[0].parseDate);
   if (ownWorkerResult){
+    const items = buildTickerItems(ownWorkerResult.rawItems, maxItems);
+    if (items.length){ renderTicker(items); return; }
     best = ownWorkerResult;
-    if (best.age <= NEWS_FRESH_ENOUGH_MS){
-      const items = buildTickerItems(best.rawItems, maxItems);
-      if (items.length){ renderTicker(items); return; }
-    }
   }
 
   for (const source of sources){
