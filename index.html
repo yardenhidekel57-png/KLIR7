@@ -955,14 +955,27 @@ function israelLocalToMs(y, mo, d, h, mi, s){
 }
 
 const WALLA_MONTHS = { Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12 };
-const WALLA_PUBDATE_RE = /^(\d{1,2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2})/;
+// walla's RSS pubDate is full RFC822, WITH the weekday name+comma prefix
+// ("Mon, 14 Sep 2026 11:08:00 GMT") — confirmed against the live feed.
+// The regex here previously required the string to start directly with
+// the day number and had no match for a leading "Mon, ", so it silently
+// failed to match on every real item (returning NaN every time) while
+// only ever having been exercised against hand-written test fixtures
+// that happened to omit the weekday too. That silent failure was the
+// actual root cause behind the ticker issues reported across many
+// rounds: formatHeadlineTimeMs(NaN) falls back to displaying the
+// CURRENT clock time (so the displayed times looked plausible/"fixed"),
+// while item selection kept silently falling through to the
+// single-newest-item fallback instead of ever doing real date-based
+// filtering — the weekday prefix is optional here so this keeps working
+// even if a feed variant omits it.
+const WALLA_PUBDATE_RE = /^(?:\w{3},\s*)?(\d{1,2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2})/;
 
-// walla's RSS pubDate looks like RFC822 ("10 Sep 2026 21:26:00 GMT") but
-// the trailing "GMT" is mislabeled — the numbers underneath are actually
-// Israel local time, not true UTC (checked against the real clock: the
-// literal-GMT reading would put headlines hours in the future). Parse
-// the wall-clock numbers directly and convert them from Israel local
-// time instead of trusting the zone marker.
+// The trailing "GMT" is also mislabeled — the numbers underneath are
+// actually Israel local time, not true UTC (checked against the real
+// clock: the literal-GMT reading would put headlines hours in the
+// future). Parse the wall-clock numbers directly and convert them from
+// Israel local time instead of trusting the zone marker.
 function wallaPubDateToMs(pubDate){
   if (!pubDate) return NaN;
   const m = pubDate.trim().match(WALLA_PUBDATE_RE);
@@ -1016,10 +1029,20 @@ const MIN_HEADLINE_LEN = 25;
 // either. So: sort newest-first, then only keep headlines from roughly
 // the last few hours — a headline older than that reading as "current
 // news" on a lobby screen is misleading, even if the feed still lists
-// it. If literally nothing qualifies (a very quiet news night), fall
-// back to just the single newest item rather than showing an empty
-// ticker.
-const MAX_HEADLINE_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
+// it.
+const MAX_HEADLINE_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours - the target window
+
+// A real breaking-news feed can genuinely go 1-2 hours between items in
+// a quiet stretch (nothing wrong with the feed, there's just no news) -
+// a strict 3-hour cutoff at that moment leaves only 1-2 headlines, which
+// loops on screen and reads as broken even though it's accurate. If the
+// target window doesn't produce at least MIN_TICKER_ITEMS, relax it in
+// one step to a wider ceiling (still newest-first, still bounded) rather
+// than show a near-empty ticker. If literally nothing qualifies even at
+// the wider ceiling (a very quiet news night), fall back to just the
+// single newest item rather than showing an empty ticker.
+const MIN_TICKER_ITEMS = 4;
+const MAX_HEADLINE_AGE_HARD_CAP_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 function buildTickerItems(rawItems, maxItems){
   const now = Date.now();
@@ -1028,10 +1051,13 @@ function buildTickerItems(rawItems, maxItems){
     .filter(i => i.text && i.text.length >= MIN_HEADLINE_LEN)
     .sort((a, b) => (isNaN(b.ms) ? -Infinity : b.ms) - (isNaN(a.ms) ? -Infinity : a.ms));
 
-  let recent = withMs.filter(i => !isNaN(i.ms) && (now - i.ms) <= MAX_HEADLINE_AGE_MS);
-  if (!recent.length && withMs.length) recent = withMs.slice(0, 1);
+  let pool = withMs.filter(i => !isNaN(i.ms) && (now - i.ms) <= MAX_HEADLINE_AGE_MS);
+  if (pool.length < MIN_TICKER_ITEMS){
+    pool = withMs.filter(i => !isNaN(i.ms) && (now - i.ms) <= MAX_HEADLINE_AGE_HARD_CAP_MS);
+  }
+  if (!pool.length && withMs.length) pool = withMs.slice(0, 1);
 
-  return recent.slice(0, maxItems).map(i => ({ time: formatHeadlineTimeMs(i.ms), text: i.text }));
+  return pool.slice(0, maxItems).map(i => ({ time: formatHeadlineTimeMs(i.ms), text: i.text }));
 }
 
 // A single flaky/caching passthrough proxy was leaving the ticker up to a
