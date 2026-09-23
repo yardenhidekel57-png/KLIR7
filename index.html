@@ -247,7 +247,7 @@
   }
   .forecast-item .day{ font-size:18px; font-weight:700; color:#8a6a28; margin-bottom:8px; }
   .forecast-item.today .day{ color:#6b4c12; font-weight:800; }
-  .forecast-item .icon{ font-size:38px; }
+  .forecast-item .icon{ display:flex; justify-content:center; align-items:center; height:38px; }
   .forecast-item .range{ font-family:'Assistant', sans-serif; font-size:23px; font-weight:800; margin-top:8px; direction:ltr; color:var(--text-navy); }
   .forecast-item .range .lo{ color:var(--text-navy-soft); font-weight:600; }
 
@@ -657,13 +657,15 @@ const CONFIG = {
     geonameid: 294071
   },
 
-  // 4 tiles, starting from today
+  // 4 tiles, starting from today. icon keys match WEATHER_ICONS below
+  // (sun / partly-cloudy / rain / snow) — see its comment for why these
+  // are drawn as SVG instead of emoji.
   weather: {
     days: [
-      { day: "היום", icon: "☀️", high: 24, low: 18 },
-      { day: "מחר", icon: "⛅", high: 25, low: 19 },
-      { day: "יום ד׳", icon: "🌤️", high: 27, low: 20 },
-      { day: "יום ה׳", icon: "☀️", high: 26, low: 19 }
+      { day: "היום", icon: "sun", high: 24, low: 18 },
+      { day: "מחר", icon: "partly-cloudy", high: 25, low: 19 },
+      { day: "יום ד׳", icon: "partly-cloudy", high: 27, low: 20 },
+      { day: "יום ה׳", icon: "sun", high: 26, low: 19 }
     ]
   },
 
@@ -771,12 +773,28 @@ function renderHeader(){
   document.getElementById('creditBadge').textContent = CONFIG.building.creditText;
 }
 
+// Weather icons were plain emoji (☀️/⛅/🌧️/🌨️) — many embedded TV
+// browsers (confirmed live on LG webOS) have no color-emoji font
+// installed and fall back to a plain black-and-white glyph instead,
+// which is exactly what was reported ("the weather icons are in black
+// and white"). Emoji color rendering depends on the OS/browser having a
+// color font available; there's no reliable way to force it from CSS.
+// Fixed by drawing the icons as inline SVG instead — flat shapes with
+// explicit fill colors, so they render identically (and in color)
+// everywhere, with zero font or network dependency.
+const WEATHER_ICONS = {
+  sun: `<svg viewBox="0 0 36 36" width="38" height="38"><circle cx="18" cy="18" r="8" fill="#FFB100"/><g stroke="#FFB100" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="2" x2="18" y2="6"/><line x1="18" y1="30" x2="18" y2="34"/><line x1="2" y1="18" x2="6" y2="18"/><line x1="30" y1="18" x2="34" y2="18"/><line x1="6.3" y1="6.3" x2="9.1" y2="9.1"/><line x1="26.9" y1="26.9" x2="29.7" y2="29.7"/><line x1="6.3" y1="29.7" x2="9.1" y2="26.9"/><line x1="26.9" y1="9.1" x2="29.7" y2="6.3"/></g></svg>`,
+  'partly-cloudy': `<svg viewBox="0 0 36 36" width="38" height="38"><circle cx="13" cy="12" r="6.5" fill="#FFB100"/><circle cx="13" cy="23" r="6" fill="#CBD5E1"/><circle cx="20" cy="20" r="7.5" fill="#CBD5E1"/><circle cx="26" cy="23" r="5.5" fill="#CBD5E1"/><rect x="11" y="21" width="17" height="8" rx="4" fill="#CBD5E1"/></svg>`,
+  rain: `<svg viewBox="0 0 36 36" width="38" height="38"><circle cx="12" cy="15" r="6" fill="#9AA9BC"/><circle cx="19" cy="12" r="7.5" fill="#9AA9BC"/><circle cx="25" cy="15" r="5.5" fill="#9AA9BC"/><rect x="10" y="13" width="17" height="8" rx="4" fill="#9AA9BC"/><g stroke="#3B82F6" stroke-width="2.4" stroke-linecap="round"><line x1="13" y1="26" x2="11" y2="32"/><line x1="19" y1="26" x2="17" y2="32"/><line x1="25" y1="26" x2="23" y2="32"/></g></svg>`,
+  snow: `<svg viewBox="0 0 36 36" width="38" height="38"><circle cx="12" cy="15" r="6" fill="#B9C6D6"/><circle cx="19" cy="12" r="7.5" fill="#B9C6D6"/><circle cx="25" cy="15" r="5.5" fill="#B9C6D6"/><rect x="10" y="13" width="17" height="8" rx="4" fill="#B9C6D6"/><g fill="#7DD3FC"><circle cx="13" cy="29" r="2"/><circle cx="19" cy="31" r="2"/><circle cx="25" cy="29" r="2"/></g></svg>`
+};
+
 function renderWeather(){
   const row = document.getElementById('forecastRow');
   row.innerHTML = CONFIG.weather.days.map((f, i) => `
     <div class="forecast-item ${i === 0 ? 'today' : ''}">
       <div class="day">${f.day}</div>
-      <div class="icon">${f.icon}</div>
+      <div class="icon">${WEATHER_ICONS[f.icon] || WEATHER_ICONS.sun}</div>
       <div class="range">${f.high}° <span class="lo">/ ${f.low}°</span></div>
     </div>
   `).join('');
@@ -1226,7 +1244,7 @@ function updateClock(){
 function fetchLiveInfo(){
   const { lat, lon, geonameid } = CONFIG.location;
   const daysHeb = ['א','ב','ג','ד','ה','ו','ש'];
-  const iconFor = code => code < 3 ? '☀️' : (code < 50 ? '⛅' : (code < 70 ? '🌧️' : '🌨️'));
+  const iconFor = code => code < 3 ? 'sun' : (code < 50 ? 'partly-cloudy' : (code < 70 ? 'rain' : 'snow'));
 
   // Weather — 4 tiles, starting today
   fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto&forecast_days=4&_=${Date.now()}`)
