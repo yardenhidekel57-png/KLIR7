@@ -1240,16 +1240,30 @@ function startSlideshow(){
 }
 
 /* ---------------- Live Clock & Date (DD/MM/YYYY) ---------------- */
+// Forced to the Asia/Jerusalem timezone explicitly, the same way the news
+// ticker's timestamps and the Shabbat times are elsewhere in this file --
+// NOT read from the device's own local getHours()/getDate() etc. (what
+// this used to do). Cheap Android streamer boxes very commonly ship with
+// their system timezone left on UTC or some other default rather than
+// Israel, and unlike a stale headline, a clock that's simply wrong by a
+// fixed number of hours is an easy thing to not notice is even broken --
+// reported live as a board showing "9:23" partway through the morning.
+// Forcing the timezone here makes the on-screen clock correct regardless
+// of whether the box's own system timezone was ever set up right. (Fixing
+// that system setting is still worth doing on the device too -- other
+// things on the box may care about it -- but the board itself no longer
+// depends on it.)
 function updateClock(){
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  document.getElementById('clockTime').textContent = `${hh}:${mm}`;
-
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mo = String(now.getMonth() + 1).padStart(2, '0');
-  const yyyy = now.getFullYear();
-  document.getElementById('gregorianDate').textContent = `${dd}/${mo}/${yyyy}`;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jerusalem', hour12: false,
+    hour: '2-digit', minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric'
+  }).formatToParts(new Date());
+  const get = type => parts.find(p => p.type === type).value;
+  let hh = get('hour');
+  if (hh === '24') hh = '00'; // some engines format midnight as "24" under hour12:false
+  document.getElementById('clockTime').textContent = `${hh}:${get('minute')}`;
+  document.getElementById('gregorianDate').textContent = `${get('day')}/${get('month')}/${get('year')}`;
 }
 
 /* ---------------- Live weather + Shabbat (Open-Meteo + Hebcal) ----------------
