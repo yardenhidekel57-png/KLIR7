@@ -196,7 +196,25 @@
     min-height:0;
   }
 
-  .col{ display:flex; flex-direction:column; gap:10px; min-height:0; overflow-y:auto; overflow-x:hidden; }
+  /* height:100% is added alongside flex:1/min-height:0 everywhere in this
+     nested flex/grid chain (#stage -> main.body-grid -> .col -> .card ->
+     .slideshow -> .slide) as a defensive fallback. #stage itself has a
+     fixed, definite pixel height (1920x1080 - see "FIXED 1920x1080 STAGE"
+     above), so a plain height:100% cascades through every descendant
+     exactly the same as a correctly-resolved flex:1 chain would -- it's
+     redundant and harmless on an engine that already gets flex:1 +
+     min-height:0 right, but it rescues an engine that doesn't propagate
+     stretch sizing correctly through several levels of nested flex
+     columns sitting inside a CSS Grid row (a known weak spot in older/
+     embedded WebView-based browsers; modern desktop Chrome has always
+     handled it, which is why this only showed up on an embedded TV
+     browser and not when testing in a normal Chrome window). This was
+     exactly the shape of a reported bug: the center "rotating poster"
+     card's photo only filled the top portion of the card, leaving a
+     blank gap below it, on a TV running TV Bro -- i.e. .slideshow (and
+     therefore its position:absolute;inset:0 .slide children) wasn't
+     actually stretching to the card's full height on that browser. */
+  .col{ display:flex; flex-direction:column; gap:10px; min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; }
 
   .card{
     background:var(--cream);
@@ -322,6 +340,7 @@
   /* ---------- CENTER: rotating house-rule posters ---------- */
   .featured-card{
     flex:1;
+    height:100%;
     position:relative;
     padding:0;
     overflow:hidden;
@@ -330,7 +349,7 @@
     min-height:0;
     border:1px solid var(--hairline);
   }
-  .slideshow{ position:relative; flex:1; min-height:0; }
+  .slideshow{ position:relative; flex:1; min-height:0; height:100%; }
   .slide{
     position:absolute; inset:0; opacity:0; transition:opacity 1.3s ease-in-out;
     background-size:cover;
