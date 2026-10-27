@@ -93,7 +93,7 @@
      badge float above it in their own corners (z-index 2). */
   .welcome-banner{
     position:absolute;
-    inset:0;
+    top:0; right:0; bottom:0; left:0;
     display:flex;
     align-items:center;
     justify-content:center;
@@ -205,15 +205,41 @@
      redundant and harmless on an engine that already gets flex:1 +
      min-height:0 right, but it rescues an engine that doesn't propagate
      stretch sizing correctly through several levels of nested flex
-     columns sitting inside a CSS Grid row (a known weak spot in older/
-     embedded WebView-based browsers; modern desktop Chrome has always
-     handled it, which is why this only showed up on an embedded TV
-     browser and not when testing in a normal Chrome window). This was
-     exactly the shape of a reported bug: the center "rotating poster"
-     card's photo only filled the top portion of the card, leaving a
-     blank gap below it, on a TV running TV Bro -- i.e. .slideshow (and
-     therefore its position:absolute;inset:0 .slide children) wasn't
-     actually stretching to the card's full height on that browser. */
+     columns sitting inside a CSS Grid row (a known weak spot in older
+     rendering engines; modern desktop Chrome has always handled it,
+     which is why this only showed up on an actual Android TV box and
+     not when testing in a normal Chrome window). This was exactly the
+     shape of a reported bug: the center "rotating poster" card's photo
+     only filled the top portion of the card, leaving a blank gap below
+     it -- i.e. .slideshow (and therefore its position:absolute .slide
+     children) wasn't actually stretching to the card's full height on
+     that device.
+
+     IMPORTANT FOLLOW-UP: the height:100% fix above was necessary but not
+     sufficient -- after shipping it, the real device still showed the
+     photo filling only its own top portion with a blank gap below, AND
+     this was confirmed to happen identically in two different kiosk
+     browser apps (TV Bro and Fully Kiosk Browser) on the same box. Two
+     separate apps hitting the exact same bug points at the one thing
+     they share: the device's underlying Android System WebView component
+     (both apps render web content through it, or through an equally
+     outdated bundled Chromium build) -- not a bug in either app
+     specifically. The remaining cause was that every .slide (and the
+     header's .welcome-banner) was positioned with the CSS "inset:0"
+     SHORTHAND instead of spelling out top:0;right:0;bottom:0;left:0.
+     "inset" is a comparatively recent CSS property (only broadly
+     supported from ~2021 on); on an old WebView like this box's, an
+     unrecognized shorthand is simply dropped, so the element kept
+     position:absolute but with NO offsets set at all -- instead of
+     stretching to fill its positioned ancestor, it shrank to the size of
+     its own content (the caption text), and its background-image (sized
+     by background-size:cover relative to THAT small box) only ever
+     covered that small area. Spelling out all four physical offsets
+     explicitly is the long-supported, universally-compatible equivalent,
+     works identically in every kiosk browser app on this box (since the
+     fix is at the HTML/CSS level, not app-specific), and has been used
+     everywhere "inset:0" previously appeared in this
+     file. */
   .col{ display:flex; flex-direction:column; gap:10px; min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; }
 
   .card{
@@ -351,7 +377,7 @@
   }
   .slideshow{ position:relative; flex:1; min-height:0; height:100%; }
   .slide{
-    position:absolute; inset:0; opacity:0; transition:opacity 1.3s ease-in-out;
+    position:absolute; top:0; right:0; bottom:0; left:0; opacity:0; transition:opacity 1.3s ease-in-out;
     background-size:cover;
     background-position:center;
     background-color:var(--navy-panel-2);
@@ -375,7 +401,7 @@
   .slide .scrim{
     /* dark gradient over the photo so the caption stays legible,
        plus a faint gold wash to tie the photo into the palette */
-    position:absolute; inset:0;
+    position:absolute; top:0; right:0; bottom:0; left:0;
     background:
       linear-gradient(0deg, rgba(6,14,28,0.95) 0%, rgba(6,14,28,0.55) 42%, rgba(6,14,28,0.05) 75%),
       linear-gradient(180deg, rgba(205,168,94,0.12), transparent 30%);
