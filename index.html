@@ -1300,7 +1300,36 @@ function updateClock(){
    page is running inside a sandboxed preview that blocks outbound
    network calls, etc.) that section just keeps showing its fallback
    values instead of breaking. */
+// Weather and Shabbat/parasha only need refreshing every 30 minutes
+// under normal conditions (unlike the news ticker/notices, which change
+// every few minutes) -- no point hammering Open-Meteo/Hebcal more often
+// than that. BUT that same 30-minute gap becomes a problem the one time
+// it actually matters: if the very first attempt (right after the page
+// loads, e.g. right after a boot where the internet isn't up yet)
+// fails, waiting a full 30 minutes for the next scheduled attempt means
+// the Shabbat card/weather can be left showing "טוען…"/stale data for
+// half an hour after connectivity is already back -- noticeably longer
+// than everything else on the board, which recovers within a few
+// minutes. liveInfoRetryTimer is a SHORT one-off retry scheduled only
+// on failure, on top of (not instead of) the normal 30-minute cycle, so
+// a lost first attempt is retried in 2 minutes instead of up to 30.
+let liveInfoRetryTimer = null;
+function scheduleLiveInfoRetry(){
+  // Weather and Shabbat can each fail independently in the same call;
+  // coalesce so a double failure doesn't schedule two overlapping retries.
+  if (liveInfoRetryTimer) return;
+  liveInfoRetryTimer = setTimeout(() => {
+    liveInfoRetryTimer = null;
+    fetchLiveInfo();
+  }, 2 * 60 * 1000);
+}
+
 function fetchLiveInfo(){
+  // A fresh call (from the normal 30-minute interval, or a retry) makes
+  // any still-pending short retry redundant -- cancel it so we don't
+  // end up firing an extra, unnecessary fetch shortly after this one.
+  if (liveInfoRetryTimer){ clearTimeout(liveInfoRetryTimer); liveInfoRetryTimer = null; }
+
   const { lat, lon, geonameid } = CONFIG.location;
   const daysHeb = ['א','ב','ג','ד','ה','ו','ש'];
   const iconFor = code => code < 3 ? 'sun' : (code < 50 ? 'partly-cloudy' : (code < 70 ? 'rain' : 'snow'));
@@ -1318,7 +1347,10 @@ function fetchLiveInfo(){
       }));
       renderWeather();
     })
-    .catch(err => console.warn('Weather feed unavailable, showing fallback:', err));
+    .catch(err => {
+      console.warn('Weather feed unavailable, showing fallback:', err);
+      scheduleLiveInfoRetry();
+    });
 
   // Shabbat times + weekly parasha. Candle-lighting is always THIS
   // upcoming Friday's own entry. The parasha is the NEAREST one coming
@@ -1372,7 +1404,10 @@ function fetchLiveInfo(){
               renderShabbat();
             }
           })
-          .catch(err => console.warn('Zmanim havdalah fetch unavailable, showing fallback:', err));
+          .catch(err => {
+            console.warn('Zmanim havdalah fetch unavailable, showing fallback:', err);
+            scheduleLiveInfoRetry();
+          });
       }
     })
     .catch(err => {
@@ -1383,6 +1418,7 @@ function fetchLiveInfo(){
         CONFIG.shabbat.parasha = 'לא זמין כרגע';
         renderShabbat();
       }
+      scheduleLiveInfoRetry();
     });
 }
 
@@ -1462,7 +1498,43 @@ function scheduleDailyReload(){
   const next = new Date(now);
   next.setHours(DAILY_RELOAD_HOUR, 0, 0, 0);
   if (next <= now) next.setDate(next.getDate() + 1);
-  setTimeout(() => location.reload(), next.getTime() - now.getTime());
+  setTimeout(() => attemptDailyReload(60), next.getTime() - now.getTime());
+}
+// Reloading is a REAL page navigation (unlike this board's regular data
+// fetches elsewhere in this file, which fail silently on a network
+// hiccup and just keep showing the last-known data) -- if the device
+// happens to be offline at the exact moment this fires, a plain
+// location.reload() would hand control over to the BROWSER'S OWN native
+// "no internet connection" error page, replacing the board entirely
+// until someone notices and reloads it by hand. Fully Kiosk Browser has
+// a built-in "reload automatically on error" setting that would recover
+// from that on its own, but TV Bro does not -- so on a TV Bro install in
+// particular, this was a real way for the one-in-however-many-days
+// unlucky reload to turn a brief internet blip into a board that stays
+// down indefinitely. That's exactly the opposite of what this daily
+// reload exists to do. Fix: before navigating, confirm the page's own
+// server is actually reachable with a quick same-origin HEAD request
+// (not just navigator.onLine, which only reflects local Wi-Fi/Ethernet
+// link state and can still read "online" even when the router itself
+// has no upstream internet). If it isn't reachable, wait 2 minutes and
+// try again (up to ~2 hours) instead of reloading into a dead page; if
+// it's still down after that, skip today's reload entirely and let
+// tomorrow's scheduled attempt try again. The board just keeps running
+// on whatever it already has loaded in memory in the meantime -- always
+// better than a bare browser error page with no board at all.
+function attemptDailyReload(retriesLeft){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  fetch(location.href, { method:'HEAD', cache:'no-store', signal: controller.signal })
+    .then(() => { clearTimeout(timer); location.reload(); })
+    .catch(() => {
+      clearTimeout(timer);
+      if (retriesLeft > 0){
+        setTimeout(() => attemptDailyReload(retriesLeft - 1), 2 * 60 * 1000);
+      } else {
+        scheduleDailyReload(); // give up for today; tomorrow's 04:00 attempt will try again
+      }
+    });
 }
 
 /* =========================================================================
@@ -1517,6 +1589,42 @@ function init(){
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+/* ---------------- Offline-safe cold start (Service Worker) ----------------
+   Everything above this point only helps once the page is ALREADY loaded
+   and running -- it has no power over what happens the moment a browser
+   (TV Bro, after the box boots) tries to load this URL from scratch while
+   there's no internet yet. That's a real scenario: after a power outage,
+   the box/streamer often finishes booting faster than the home router/ISP
+   modem finishes reconnecting (that can take 1-3 minutes) -- so TV Bro can
+   try to open this page before the network is actually back. TV Bro has no
+   setting to retry that automatically (unlike Fully Kiosk's "reload on
+   error"), so without help here the browser would show its own blank
+   native "no internet connection" page instead of the board, and nothing
+   on THIS page's JS can rescue that, because none of it ever got the
+   chance to run.
+
+   The fix is a Service Worker (sw.js, alongside this file): once this page
+   has loaded successfully even a single time, the Service Worker keeps a
+   cached copy of it. On every future load it still always tries the real
+   network FIRST (so the board is never stuck on stale content while
+   there's internet) -- it only falls back to that cached copy on the rare
+   occasion the network request itself fails, i.e. exactly a cold boot
+   during an outage. That swaps "blank browser error page, stuck until
+   someone notices" for "today's/yesterday's board, running normally,
+   until the connection comes back on its own" -- and once it's back, the
+   page's own existing logic (data fetches keep last-known values; the
+   04:00 reload above already waits for reachability) takes over exactly
+   as it already does. Registration failing silently (older WebView, first
+   run ever with nothing cached yet, sw.js not uploaded to the server) is
+   harmless either way -- it just means this specific safety net isn't
+   available, not that anything breaks. */
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .catch(err => console.warn('Service Worker registration failed (harmless -- just means no offline-cold-boot fallback is available):', err));
+  });
+}
 </script>
 
 </body>
